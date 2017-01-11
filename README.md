@@ -1,21 +1,19 @@
 # sql_server Cookbook
 
-[![Travis Build Status](https://travis-ci.org/chef-cookbooks/sql_server.svg?branch=master)](http://travis-ci.org/chef-cookbooks/sql_server) [![Cookbook Version](https://img.shields.io/cookbook/v/sql_server.svg)](https://supermarket.chef.io/cookbooks/sql_server)
+[![Travis Build Status](https://travis-ci.org/chef-cookbooks/sql_server.svg?branch=master)](http://travis-ci.org/chef-cookbooks/sql_server) [![Cookbook Version](https://img.shields.io/cookbook/v/sql_server.svg)](https://supermarket.chef.io/cookbooks/sql_server)[![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/ww3v5xdery9ha972/branch/master?svg=true)](https://ci.appveyor.com/project/ChefWindowsCookbooks/sql-server/branch/master)
 
-[![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/ww3v5xdery9ha972/branch/master?svg=true)](https://ci.appveyor.com/project/ChefWindowsCookbooks/sql-server/branch/master)
-
-Installs and configures Microsoft SQL Server 2008 R2 and Microsoft SQL Server 2012 server and client. By default the Express edition is installed, but the `sql_server::server` recipe supports installation of other editions (see **Usage** below).
+Installs and configures Microsoft SQL Server 2008 R2 SP2 and Microsoft SQL Server 2012 server and client. By default the Express edition is installed, but the `sql_server::server` recipe supports installation of other editions (see **Usage** below).
 
 ## Requirements
 
 ### Platforms
 
-- Windows Server 2008 R2
+- Windows Server 2008 R2 (SP2)
 - Windows Server 2012 (R1, R2)
 
 ### Chef
 
-- Chef 12.1+
+- Chef 12.6+
 
 ### Cookbooks
 
@@ -37,7 +35,6 @@ This file also contains download url, checksum and package name for all client i
 ### server
 
 - `node['sql_server']['install_dir']` - main directory for installation, default is `C:\Program Files\Microsoft SQL Server`
-- `node['sql_server']['port']` - static TCP port server should listen on for client connections, default is `1433`
 - `node['sql_server']['instance_name']` - name of the default instance, default is `SQLEXPRESS`
 - `node['sql_server']['instance_dir']` - root directory of the default instance, default is `C:\Program Files\Microsoft SQL Server`
 - `node['sql_server']['shared_wow_dir']` - root directory of the shared WOW directory, default is `C:\Program Files (x86)\Microsoft SQL Server`
@@ -51,6 +48,16 @@ This file also contains download url, checksum and package name for all client i
 - `node['sql_server']['sql_account']` - SQL service account name, default is `NT AUTHORITY\NETWORK SERVICE`
 
 This file also contains download url, checksum and package name for the server installation package.
+
+### configure
+- `node['sql_server']['tcp_enabled']` - Enables TCP listener, default is `true`
+- `node['sql_server']['port']` - Static TCP port server should listen on for client connections, default is `1433`
+- `node['sql_server']['tcp_dynamic_ports']` - Dynamic TCP ports server should listen on for client connections, default is `''`
+- `node['sql_server']['np_enabled']` - Enables Named pipes listener, default is `false`
+- `node['sql_server']['sm_enabled']` - Enables Shared Memory listener, default is `true`
+- `node['sql_server']['via_default_port']` - VIA default listener port, default is `0:1433`
+- `node['sql_server']['via_enabled']` - Enables VIA listener, default is `false`
+- `node['sql_server']['via_listen_info']` - VIA listener info, default is `0:1433`
 
 ## Usage
 
@@ -70,6 +77,17 @@ Installs required the SQL Server Native Client and all required dependancies. Th
 
 The SQL Server Native Client contains the SQL Server ODBC driver and the SQL Server OLE DB provider in one native dynamic link library (DLL) supporting applications using native-code APIs (ODBC, OLE DB and ADO) to Microsoft SQL Server. In simple terms these packages should allow any other node to act as a client of a SQL Server instance.
 
+### configure
+Configures SQL Server registry keys via attributes, and restart the Engine service if required.
+
+Current supported settings are mostly connection listeners:
+- TCP or VIA listener ports
+- TCP, Named Pipes, Shared Memory or VIA listener activation.
+
+NOTE: It could be very dangerous to change these settings on a production server!
+
+This recipe is included by the `sql_server::server` recipe, but can be included independently if you setup SQL Server by yourself.
+
 ### server
 
 Installs SQL Server 2008 R2 Express or SQL Server 2012 Express.
@@ -80,7 +98,7 @@ NOTE: For this recipe to run you must set the node['sql_server']['server_sa_pass
 
 NOTE: This recipe will request a reboot at the end of the Chef Client run if SQL Server was installed.. If you do not want to reboot after the installation, use the `reboot` resource to cancel the pending reboot.
 
-**Option 1:** From a role, environment, or wrapper cookbook, set `node['sql_server']['version']` to '2008R2' to install SQL Server 2008 R2 Express or '2012' to install SQL Server 2012 Express.
+**Option 1:** From a role, environment, or wrapper cookbook, set `node['sql_server']['version']` to '2008R2' to install SQL Server 2008 R2 Express, '2012' to install SQL Server 2012 Express or '2014' to install SQL Server 2014 Express.
 
 **Option 2:** From a role, environment, or wrapper cookbook, set these node attributes to specify the URL, checksum, and name of the package (as it appears in the Windows Registry).
 
@@ -90,11 +108,11 @@ node['sql_server']['server']['checksum']
 node['sql_server']['server']['package_name']
 ```
 
-The installation is done using the `windows_package` resource and [ConfigurationFile](http://msdn.microsoft.com/en-us/library/dd239405.aspx) generated from a `template` resource. The installation is slightly opinionated and does the following:
+The installation is done using the `package` resource and [ConfigurationFile](http://msdn.microsoft.com/en-us/library/dd239405.aspx) generated from a `template` resource. The installation is slightly opinionated and does the following:
 
 - Enables [Mixed Mode](http://msdn.microsoft.com/en-us/library/aa905171\(v=sql.80\).aspx) (Windows Authentication and SQL Server Authentication) authentication
 - Auto-generates and sets a strong password for the 'sa' account
-- sets a static TCP port which is configurable via an attribute.
+- sets a static TCP port which is configurable via an attribute, using the `sql_server::configure` recipe.
 
 Installing any of the SQL Server server or client packages in an unattended/automated way requires you to explicitly indicate that you accept the terms of the end user license. The hooks have been added to all recipes to do this via an attribute. Create a role to set the `node['sql_server']['accept_eula']` attribute to 'true'. For example:
 

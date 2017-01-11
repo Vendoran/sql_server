@@ -1,6 +1,6 @@
 #
 # Author:: Seth Chisamore (<schisamo@chef.io>)
-# Cookbook Name:: sql_server
+# Cookbook:: sql_server
 # Recipe:: server
 #
 # Copyright:: 2011-2016, Chef Software, Inc.
@@ -19,36 +19,6 @@
 #
 
 Chef::Application.fatal!("node['sql_server']['server_sa_password'] must be set for this cookbook to run") if node['sql_server']['server_sa_password'].nil?
-
-# SQLEXPRESS is used as an instance name in Standard or Enterprise installs
-# SQL Server it will default to MSSQLSERVER. Any instance name used will
-# have MSSQ$ appeneded to the front
-service_name = if node['sql_server']['instance_name'] == 'MSSQLSERVER'
-                 node['sql_server']['instance_name']
-               else
-                 "MSSQL$#{node['sql_server']['instance_name']}"
-               end
-# Agent name needs to be declared because if you use the SQL Agent, you need
-# to restart both services as the Agent is dependent on the SQL Service
-agent_service_name = if node['sql_server']['instance_name'] == 'MSSQLSERVER'
-                       'SQLSERVERAGENT'
-                     else
-                       "SQLAgent$#{node['sql_server']['instance_name']}"
-                     end
-
-# Compute registry version based on sql server version
-reg_version = node['sql_server']['reg_version'] ||
-              case node['sql_server']['version']
-              when '2008' then 'MSSQL10.'
-              when '2008R2' then 'MSSQL10_50.'
-              when '2012' then 'MSSQL11.'
-              when '2014' then 'MSSQL12.'
-              when '2016' then 'MSSQL13.'
-              else raise "Unsupported sql_server version '#{node['sql_server']['version']}'"
-              end
-
-static_tcp_reg_key = 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft SQL Server\\' + reg_version +
-                     node['sql_server']['instance_name'] + '\MSSQLServer\SuperSocketNetLib\Tcp\IPAll'
 
 config_file_path = win_friendly_path(File.join(Chef::Config[:file_cache_path], 'ConfigurationFile.ini'))
 
@@ -85,15 +55,17 @@ package_checksum = node['sql_server']['server']['checksum'] ||
 passwords_options = {
   AGTSVCPASSWORD: node['sql_server']['agent_account_pwd'],
   RSSVCPASSWORD:  node['sql_server']['rs_account_pwd'],
-  SQLSVCPASSWORD: node['sql_server']['sql_account_pwd']
+  SQLSVCPASSWORD: node['sql_server']['sql_account_pwd'],
 }.map do |option, attribute|
   next unless attribute
   # Escape password double quotes and backslashes
   safe_password = attribute.gsub(/["\\]/, '\\\\\0')
-  "/#{option}=\"#{safe_password}\""
+  # When the number of double quotes is odd, we need to escape the enclosing quotes
+  enclosing_escape = safe_password.count('"').odd? ? '^' : ''
+  "/#{option}=\"#{safe_password}#{enclosing_escape}\""
 end.compact.join ' '
 
-windows_package package_name do
+package package_name do
   source package_url
   checksum package_checksum
   timeout node['sql_server']['server']['installer_timeout']
@@ -104,31 +76,10 @@ windows_package package_name do
   returns [0, 42, 127, 3010]
 end
 
-# set the static tcp port
-registry_key static_tcp_reg_key do
-  values [{ name: 'TcpPort', type: :string, data: node['sql_server']['port'].to_s },
-          { name: 'TcpDynamicPorts', type: :string, data: '' }]
-  recursive true
-  notifies :restart, "service[#{service_name}]", :immediately
-end
-
-# If you have declared an agent account it will restart both the
-# agent service and the sql service. If not only the sql service
-if node['sql_server']['agent_account']
-  service agent_service_name do
-    action [:start, :enable]
-  end
-end
-
-service service_name do
-  action [:start, :enable]
-  restart_command %(powershell.exe -C "restart-service '#{service_name}' -force")
-end
-
 # SQL Server requires a reboot to complete your install
 reboot 'sql server install' do
   action :nothing
   reason 'Needs to reboot after installing SQL Server'
 end
 
-include_recipe 'sql_server::client'
+include_recipe 'sql_server::configure'

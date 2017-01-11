@@ -1,9 +1,9 @@
 #
 # Author:: Seth Chisamore (<schisamo@chef.io>)
-# Cookbook Name:: sql_server
+# Cookbook:: sql_server
 # Attribute:: server
 #
-# Copyright:: Copyright (c) 2011-2016 Chef Software, Inc.
+# Copyright:: 2011-2016, Chef Software, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,8 +19,6 @@
 #
 
 default['sql_server']['install_dir']    = 'C:\Program Files\Microsoft SQL Server'
-default['sql_server']['port']           = 1433
-
 default['sql_server']['instance_name']  = 'SQLEXPRESS'
 default['sql_server']['instance_dir']   = 'C:\Program Files\Microsoft SQL Server'
 default['sql_server']['shared_wow_dir'] = 'C:\Program Files (x86)\Microsoft SQL Server'
@@ -34,6 +32,8 @@ default['sql_server']['browser_startup'] = 'Disabled'
 default['sql_server']['sysadmins'] = ['Administrator']
 default['sql_server']['sql_account'] = 'NT AUTHORITY\NETWORK SERVICE'
 default['sql_server']['update_enabled'] = true # applies to SQL Server 2012 and later
+default['sql_server']['filestream_level'] = 0
+default['sql_server']['filestream_share_name'] = 'MSSQLSERVER'
 
 default['sql_server']['server']['installer_timeout'] = 1500
 
